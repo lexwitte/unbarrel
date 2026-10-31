@@ -1,0 +1,86 @@
+name: Publish
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - uses: pnpm/action-setup@v6
+      - run: pnpm install --no-frozen-lockfile --ignore-scripts
+      - run: pnpm check
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+      - name: Set repository metadata
+        run: |
+          node --input-type=module <<'JS'
+          import { readFileSync, writeFileSync } from 'node:fs';
+          const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
+          pkg.repository = {
+            type: 'git',
+            url: `git+https://github.com/${process.env.GITHUB_REPOSITORY}.git`,
+          };
+          writeFileSync('package.json', `${JSON.stringify(pkg, null, 2)}\n`);
+          JS
+      - run: pnpm pack --ignore-scripts
+      - uses: actions/upload-artifact@v7
+        with:
+          name: package
+          path: '*.tgz'
+          if-no-files-found: error
+
+  publish:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+      - uses: pnpm/action-setup@v6
+      - uses: actions/download-artifact@v8
+        with:
+          name: package
+      - name: Check release version
+        id: release
+        run: |
+          node --input-type=module <<'JS'
+          import { appendFileSync, readFileSync } from 'node:fs';
+          const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
+          const response = await fetch(
+            `https://registry.npmjs.org/${encodeURIComponent(pkg.name)}/${encodeURIComponent(pkg.version)}`,
+            { signal: AbortSignal.timeout(30_000) },
+          );
+          if (!response.ok && response.status !== 404) {
+            throw new Error(`Registry version check failed: ${response.status}`);
+          }
+          appendFileSync(process.env.GITHUB_OUTPUT, `publish=${response.status === 404}\n`);
+          if (response.ok) {
+            console.log(`${pkg.name}@${pkg.version} is already published; skipping.`);
+          }
+          JS
+      - if: steps.release.outputs.publish == 'true'
+        run: pnpm publish ./*.tgz --access public --provenance --no-git-checks --ignore-scripts

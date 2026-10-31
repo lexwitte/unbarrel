@@ -1,0 +1,73 @@
+{
+  "name": "@witte/unbarrel",
+  "version": "0.1.1",
+  "description": "Write clean barrel imports, run concrete-file imports: rewrites static imports of local barrel files into imports of the defining modules at build or load time.",
+  "keywords": [
+    "barrel",
+    "barrel-files",
+    "circular-dependencies",
+    "codemod",
+    "esm",
+    "imports",
+    "loader",
+    "nestjs",
+    "vite",
+    "vitest"
+  ],
+  "license": "MIT",
+  "author": "Lex Witte",
+  "bin": {
+    "unbarrel": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "type": "module",
+  "sideEffects": [
+    "./dist/register.js"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./register": {
+      "types": "./dist/register.d.ts",
+      "default": "./dist/register.js"
+    },
+    "./vite": {
+      "types": "./dist/vite.d.ts",
+      "default": "./dist/vite.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "check": "vp check",
+    "lint": "vp lint",
+    "lint:fix": "vp check --fix",
+    "format": "vp fmt",
+    "format:check": "vp fmt --check",
+    "prepare": "pnpm build",
+    "test": "vp test",
+    "typecheck": "tsc --pretty false --noEmit -p tsconfig.json",
+    "prepack": "pnpm check && pnpm typecheck && pnpm test && pnpm build"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.5",
+    "typescript": "6.0.3",
+    "vite-plus": "1.4.0"
+  },
+  "peerDependencies": {
+    "typescript": ">=5.3"
+  },
+  "engines": {
+    "node": ">=20.6"
+  },
+  "packageManager": "pnpm@12.8.1"
+}
